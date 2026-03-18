@@ -3,6 +3,14 @@ import 'models/health_data.dart';
 import 'services/esp32_service.dart';
 import 'package:intl/intl.dart';
 
+// Import des 6 nouveaux modules
+import 'alerts_notifications.dart';
+import 'device_connectivity.dart';
+import 'health_dashboard.dart';
+import 'health_history.dart';
+import 'heart_rate_analysis.dart';
+import 'live_dashboard_updated.dart';
+
 void main() {
   runApp(const HealthApp());
 }
@@ -82,9 +90,9 @@ class LoginPage extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                   ),
                   onPressed: () {
-                    Navigator.push(
+                    Navigator.pushReplacement(
                       context,
-                      MaterialPageRoute(builder: (context) => const DashboardPage()),
+                      MaterialPageRoute(builder: (context) => const MainNavigation()),
                     );
                   },
                   child: const Text("Login"),
@@ -103,146 +111,57 @@ class LoginPage extends StatelessWidget {
 }
 
 ////////////////////////////////////////////////////////////
-/// DASHBOARD PAGE
+/// MAIN NAVIGATION (relie les 6 modules)
 ////////////////////////////////////////////////////////////
 
-class DashboardPage extends StatefulWidget {
-  const DashboardPage({super.key});
+class MainNavigation extends StatefulWidget {
+  const MainNavigation({super.key});
 
   @override
-  State<DashboardPage> createState() => _DashboardPageState();
+  State<MainNavigation> createState() => _MainNavigationState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
-  HealthData? healthData;
-  bool isLoading = true;
+class _MainNavigationState extends State<MainNavigation> {
+  int _currentIndex = 0;
 
-  @override
-  void initState() {
-    super.initState();
-    loadData();
-  }
+  final List<Widget> _pages = const [
+    LiveDashboardUpdated(),
+    DeviceConnectivity(),
+    HealthDashboard(),
+    HealthHistory(),
+    HeartRateAnalysis(),
+    AlertsNotifications(),
+  ];
 
-  Future<void> loadData() async {
-    try {
-      final data = await ESP32Service.fetchData();
-      setState(() {
-        healthData = data;
-        isLoading = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoading = false;
-      });
-      debugPrint('Error: $e');
-    }
-  }
-
-  Widget healthCard(IconData icon, String title, String value, String status, Color color) {
-    return Card(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-      elevation: 3,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Row(
-          children: [
-            Icon(icon, size: 35, color: color),
-            const SizedBox(width: 15),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                Text(value, style: const TextStyle(fontSize: 20)),
-                Text(status, style: TextStyle(color: color, fontSize: 12)),
-              ],
-            )
-          ],
-        ),
-      ),
-    );
-  }
+  final List<String> _titles = const [
+    "Live Dashboard",
+    "Connectivity",
+    "Dashboard",
+    "History",
+    "Heart Analysis",
+    "Alerts",
+  ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text("Health Dashboard"), backgroundColor: const Color(0xFF135BEC)),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                children: [
-                  healthCard(
-                    Icons.favorite,
-                    "Heart Rate",
-                    "${healthData!.heartRate} bpm",
-                    healthData!.heartRate > 100 ? "High" : "Normal",
-                    healthData!.heartRate > 100 ? Colors.red : Colors.green,
-                  ),
-                  const SizedBox(height: 15),
-                  healthCard(
-                    Icons.thermostat,
-                    "Temperature",
-                    "${healthData!.temperature} °C",
-                    healthData!.temperature > 37.5 ? "High" : "Normal",
-                    healthData!.temperature > 37.5 ? Colors.red : Colors.green,
-                  ),
-                  const SizedBox(height: 15),
-                  healthCard(
-                    Icons.directions_walk,
-                    "Activity",
-                    "${healthData!.steps} steps",
-                    healthData!.steps < 5000 ? "Low" : "Good",
-                    healthData!.steps < 5000 ? Colors.orange : Colors.green,
-                  ),
-                  const SizedBox(height: 30),
-                  ElevatedButton(
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => HistoryPage(data: healthData!)),
-                      );
-                    },
-                    child: const Text("View History"),
-                  )
-                ],
-              ),
-            ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: loadData,
-        child: const Icon(Icons.refresh),
-      ),
-    );
-  }
-}
-
-////////////////////////////////////////////////////////////
-/// HISTORY PAGE
-////////////////////////////////////////////////////////////
-
-class HistoryPage extends StatelessWidget {
-  final HealthData data;
-
-  const HistoryPage({super.key, required this.data});
-
-  Widget historyItem(HealthData hd) {
-    return Card(
-      child: ListTile(
-        title: Text("Time: ${DateFormat('yyyy-MM-dd – kk:mm:ss').format(hd.timestamp)}"),
-        subtitle: Text("Heart: ${hd.heartRate} bpm   |   Temp: ${hd.temperature} °C   |   Steps: ${hd.steps}"),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text("Health History"), backgroundColor: const Color(0xFF135BEC)),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          historyItem(data),
-          // Tu pourras ajouter d'autres données ici si tu as un historique réel
+      appBar: AppBar(title: Text(_titles[_currentIndex])),
+      body: _pages[_currentIndex],
+      bottomNavigationBar: BottomNavigationBar(
+        type: BottomNavigationBarType.fixed,
+        currentIndex: _currentIndex,
+        onTap: (index) {
+          setState(() {
+            _currentIndex = index;
+          });
+        },
+        items: const [
+          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Live"),
+          BottomNavigationBarItem(icon: Icon(Icons.bluetooth), label: "Connect"),
+          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Dashboard"),
+          BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
+          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Heart"),
+          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: "Alerts"),
         ],
       ),
     );
