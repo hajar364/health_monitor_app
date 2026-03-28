@@ -53,16 +53,7 @@ class HealthDashboard extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: 0, // Dashboard tab active
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Dashboard"),
-          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Stats"),
-          BottomNavigationBarItem(icon: Icon(Icons.description), label: "Records"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
+
     );
   }
 }

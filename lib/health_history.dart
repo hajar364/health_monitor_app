@@ -27,15 +27,6 @@ class HealthHistory extends StatelessWidget {
             Center(child: Text("Yearly history coming soon")),
           ],
         ),
-        bottomNavigationBar: BottomNavigationBar(
-          type: BottomNavigationBarType.fixed,
-          currentIndex: 1, // History tab active
-          items: const [
-            BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Dashboard"),
-            BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-            BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-          ],
-        ),
       ),
     );
   }
