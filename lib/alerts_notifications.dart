@@ -65,18 +65,6 @@ class AlertsNotifications extends StatelessWidget {
           ),
         ],
       ),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: 2, // Alerts tab active
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: "Home"),
-          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Vitals"),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.notifications), label: "Alerts"),
-          BottomNavigationBarItem(icon: Icon(Icons.description), label: "Records"),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: "Profile"),
-        ],
-      ),
     );
   }
 }
