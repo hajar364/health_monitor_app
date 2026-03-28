@@ -27,89 +27,10 @@ class HealthApp extends StatelessWidget {
         primaryColor: const Color(0xFF135BEC),
         useMaterial3: true,
       ),
-      home: const LoginPage(),
+      home: const MainNavigation(),
     );
   }
 }
-
-////////////////////////////////////////////////////////////
-/// LOGIN PAGE
-////////////////////////////////////////////////////////////
-
-class LoginPage extends StatelessWidget {
-  const LoginPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F6F8),
-      body: Center(
-        child: Container(
-          width: 350,
-          padding: const EdgeInsets.all(25),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(15),
-            boxShadow: const [BoxShadow(color: Colors.black12, blurRadius: 10)],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(Icons.medical_services, size: 60, color: Color(0xFF135BEC)),
-              const SizedBox(height: 20),
-              const Text(
-                "Welcome Back",
-                style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 10),
-              const Text(
-                "Log in to monitor your health data",
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 25),
-              TextField(
-                decoration: InputDecoration(
-                  labelText: "Email",
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-              const SizedBox(height: 15),
-              TextField(
-                obscureText: true,
-                decoration: InputDecoration(
-                  labelText: "Password",
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                ),
-              ),
-              const SizedBox(height: 20),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF135BEC),
-                    padding: const EdgeInsets.all(14),
-                  ),
-                  onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (context) => const MainNavigation()),
-                    );
-                  },
-                  child: const Text("Login"),
-                ),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: const Text("Sign Up"),
-              )
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 ////////////////////////////////////////////////////////////
 /// MAIN NAVIGATION (relie les 6 modules)
 ////////////////////////////////////////////////////////////
