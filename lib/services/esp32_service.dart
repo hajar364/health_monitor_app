@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:http/http.dart' as http;
 import '../models/health_data.dart';
+import 'esp32_firmware_adapter.dart';
 
 class ESP32Service {
   static const String baseUrl = "http://192.168.1.100"; // IP ESP32
@@ -55,45 +56,68 @@ class ESP32Service {
     return _healthDataController.stream;
   }
 
-  /// Parser les données JSON reçues du ESP32
-  void parseAndProcessData(String jsonString) {
+  /// Parser les données reçues du ESP32
+  /// Supporte deux formats:
+  /// 1. JSON: {"heartRate": 72, "temperature": 36.6, ...}
+  /// 2. Format firmware: "=== Mesures ===\nTempérature: Amb=26.71 °C | Obj=27.91 °C\n..."
+  void parseAndProcessData(String rawData) {
     try {
-      _lastRawData = jsonString.trim();
+      _lastRawData = rawData.trim();
       
-      // Nettoyer la chaîne JSON
       if (_lastRawData.isEmpty) return;
       
-      // Vérifier si c'est du JSON valide
-      if (!_lastRawData.startsWith('{') || !_lastRawData.endsWith('}')) {
-        print('⚠️ Format JSON invalide: $_lastRawData');
+      HealthData healthData;
+      
+      // Déterminer le format
+      if (_lastRawData.startsWith('{') && _lastRawData.endsWith('}')) {
+        // === FORMAT JSON (ancien) ===
+        healthData = _parseJSON(rawData);
+      } else if (_lastRawData.contains('=== Mesures ===')) {
+        // === FORMAT FIRMWARE (nouveau) ===
+        healthData = _parseFirmwareFormat(rawData);
+      } else {
+        print('⚠️ Format non reconnu: $_lastRawData');
         return;
       }
-      
-      // Parser JSON
-      final json = jsonDecode(_lastRawData);
-      
-      // Créer objet HealthData
-      final healthData = HealthData(
-        heartRate: (json['heartRate'] ?? 0.0).toDouble(),
-        temperature: (json['temperature'] ?? 0.0).toDouble(),
-        humidity: (json['humidity'] ?? 0.0).toDouble(),
-        accelX: (json['accelX'] ?? 0.0).toDouble(),
-        accelY: (json['accelY'] ?? 0.0).toDouble(),
-        accelZ: (json['accelZ'] ?? 0.0).toDouble(),
-        timestamp: DateTime.now(),
-        status: (json['isAbnormal'] ?? false) ? HealthStatus.alert : HealthStatus.normal,
-        reason: json['reason'] ?? 'Pas de raison',
-      );
       
       // Émettre les données
       _healthDataController.add(healthData);
       
-      print('✓ Données santé reçues: FC=${healthData.heartRate} BPM, T=${healthData.temperature}°C');
+      print('✓ Données santé reçues: FC=${healthData.heartRate.toStringAsFixed(1)} BPM, '
+            'T=${healthData.temperature.toStringAsFixed(1)}°C, Status=${healthData.status.name}');
       
     } catch (e) {
-      print('❌ Erreur parsing JSON: $e');
+      print('❌ Erreur parsing: $e');
       print('   Données brutes: $_lastRawData');
     }
+  }
+
+  /// Parser le format JSON (ancien)
+  HealthData _parseJSON(String jsonString) {
+    final json = jsonDecode(jsonString);
+    
+    return HealthData(
+      heartRate: (json['heartRate'] ?? 0.0).toDouble(),
+      temperature: (json['temperature'] ?? 0.0).toDouble(),
+      humidity: (json['humidity'] ?? 0.0).toDouble(),
+      accelX: (json['accelX'] ?? 0.0).toDouble(),
+      accelY: (json['accelY'] ?? 0.0).toDouble(),
+      accelZ: (json['accelZ'] ?? 0.0).toDouble(),
+      timestamp: DateTime.now(),
+      status: (json['isAbnormal'] ?? false) ? HealthStatus.alert : HealthStatus.normal,
+      reason: json['reason'] ?? 'Pas de raison',
+    );
+  }
+
+  /// Parser le format du firmware ESP32 (nouveau)
+  /// Format:
+  /// === Mesures ===
+  /// Température: Amb=26.71 °C | Obj=27.91 °C
+  /// MAX30100: IR=0 | RED=0
+  /// MPU6050: Accel[X=0 Y=0 Z=0] Gyro[X=0 Y=0 Z=0]
+  /// ⚠️ Alerte : LED allumée ! / OK : LED éteinte.
+  HealthData _parseFirmwareFormat(String serialData) {
+    return ESP32FirmwareAdapter.parseSerialOutput(serialData);
   }
 
   /// Ajouter des données de test au stream
