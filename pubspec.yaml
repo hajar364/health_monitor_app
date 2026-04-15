@@ -20,6 +20,12 @@ dependencies:
   # Date formatting for timestamps
   intl: ^0.18.1
 
+  # Audio for alerts
+  audioplayers: ^6.6.0
+
+  # Bluetooth (for legacy version)
+  flutter_bluetooth_serial: ^0.4.0
+
 
 dev_dependencies:
   flutter_test:

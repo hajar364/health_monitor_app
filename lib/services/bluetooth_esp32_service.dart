@@ -6,138 +6,28 @@ import 'package:health_monitor_app/services/esp32_service.dart';
 import 'package:health_monitor_app/models/health_data.dart';
 
 /// Service Bluetooth pour recevoir les données du firmware ESP32
+/// Gère la connexion, la réception de données JSON et l'envoi de commandes
 class BluetoothESP32Service {
+  static const String ESP32_DEVICE_NAME = "ESP32_HealthMonitor";
+  
   final FlutterBluetoothSerial _bluetooth = FlutterBluetoothSerial.instance;
-  BluetoothConnection? _connection;
   final ESP32Service _esp32Service = ESP32Service();
   
+  BluetoothConnection? _connection;
   StreamSubscription? _bluetoothSubscription;
+  
   final _bluetoothDataController = StreamController<String>.broadcast();
+  final _healthDataController = StreamController<HealthData>.broadcast();
   
   bool _isConnected = false;
   String? _connectedDeviceAddress;
-
-  // getter
-  bool get isConnected => _isConnected;
-  Stream<String> get bluetoothDataStream => _bluetoothDataController.stream;
-  Stream<HealthData> get healthDataStream => _esp32Service.streamBluetoothData();
-
-  /// Scanner et connecter à l'ESP32 via Bluetooth
-  Future<void> connectToESP32(String deviceAddress) async {
-    try {
-      print('🔵 Tentative de connexion à $deviceAddress...');
-      
-      _connection = await BluetoothConnection.toAddress(deviceAddress);
-      _connectedDeviceAddress = deviceAddress;
-      _isConnected = true;
-      
-      print('✅ Connecté à l\'ESP32 !');
-      
-      // Écouter les données entrantes
-      _listenToBluetoothData();
-      
-    } catch (e) {
-      print('❌ Erreur connexion: $e');
-      _isConnected = false;
-      rethrow;
-    }
-  }
-
-  /// Écouter et parser les données du Bluetooth
-  void _listenToBluetoothData() {
-    _connection?.input?.listen(
-      (Uint8List data) {
-        String received = String.fromCharCodes(data);
-        print('📡 Données reçues: $received');
-        
-        // Envoyer au stream brut
-        _bluetoothDataController.add(received);
-        
-        // Parser et traiter
-        _processIncomingData(received);
-      },
-      onError: (error) {
-        print('❌ Erreur Bluetooth: $error');
-        disconnect();
-      },
-      onDone: () {
-        print('⚠️ Connexion Bluetooth fermée');
-        disconnect();
-      },
-    ).asFuture();
-  }
-
-  /// Traiter les données entrantes (buffer accumulation)
   String _buffer = '';
 
-  void _processIncomingData(String received) {
-    _buffer += received;
-
-    // Vérifier si on a un bloc complet de données
-    if (_buffer.contains('=== Mesures ===') && 
-        _buffer.contains('LED éteinte') || _buffer.contains('LED allumée')) {
-      
-      // Extraire le bloc complet
-      final startIdx = _buffer.indexOf('=== Mesures ===');
-      final endIdx = _buffer.lastIndexOf('LED') + 15;  // Après "LED allumée/éteinte"
-      
-      if (startIdx != -1 && endIdx > startIdx) {
-        final completeBlock = _buffer.substring(startIdx, endIdx);
-        
-        // Parser et émettre
-        _esp32Service.parseAndProcessData(completeBlock);
-        
-        // Nettoyer le buffer
-        _buffer = _buffer.substring(endIdx);
-      }
-    }
-  }
-
-  /// Envoyer une commande à l'ESP32
-  Future<void> sendCommand(String command) async {
-    if (!_isConnected || _connection == null) {
-      throw Exception('Non connecté à l\'ESP32');
-    }
-    
-    try {
-      _connection!.output.add(utf8.encode(command + '\n'));
-      await _connection!.output.allSent;
-      print('📤 Commande envoyée: $command');
-    } catch (e) {
-      print('❌ Erreur envoi: $e');
-    }
-  }
-
-  /// Demander une mesure immédiate
-  Future<void> requestMeasurement() async {
-    await sendCommand('MEASURE');
-  }
-
-  /// Activer/Désactiver LED d'alerte
-  Future<void> setLED(bool enabled) async {
-    final command = enabled ? 'LED_ON' : 'LED_OFF';
-    await sendCommand(command);
-  }
-
-  /// Configurer les seuils de l'ESP32
-  Future<void> setThreshold(String metric, double minVal, double maxVal) async {
-    final command = 'SET_THRESHOLD $metric $minVal $maxVal';
-    await sendCommand(command);
-  }
-
-  /// Déconnecter
-  Future<void> disconnect() async {
-    try {
-      await _connection?.close();
-      _connection = null;
-      _isConnected = false;
-      _connectedDeviceAddress = null;
-      await _bluetoothSubscription?.cancel();
-      print('✓ Déconnecté');
-    } catch (e) {
-      print('❌ Erreur déconnexion: $e');
-    }
-  }
+  // Getters
+  bool get isConnected => _isConnected && _connection != null;
+  String? get connectedDeviceAddress => _connectedDeviceAddress;
+  Stream<String> get bluetoothDataStream => _bluetoothDataController.stream;
+  Stream<HealthData> get healthDataStream => _healthDataController.stream;
 
   /// Lister les appareils Bluetooth disponibles
   Future<List<BluetoothDevice>> getAvailableDevices() async {
@@ -150,10 +40,207 @@ class BluetoothESP32Service {
     }
   }
 
+  /// Connecter à un appareil Bluetooth par son adresse
+  Future<bool> connectToDevice(String deviceAddress) async {
+    try {
+      print('🔵 Tentative de connexion à $deviceAddress...');
+      
+      _connection = await BluetoothConnection.toAddress(deviceAddress);
+      _connectedDeviceAddress = deviceAddress;
+      _isConnected = true;
+      _buffer = '';
+      
+      print('✅ Connecté à l\'ESP32 !');
+      _esp32Service.setConnectionStatus(true);
+      
+      // Écouter les données entrantes
+      _listenToBluetoothData();
+      
+      return true;
+      
+    } catch (e) {
+      print('❌ Erreur connexion: $e');
+      _isConnected = false;
+      _esp32Service.setConnectionStatus(false);
+      return false;
+    }
+  }
+
+  /// Connecter au premier ESP32 trouvé
+  Future<bool> connectToFirstESP32() async {
+    try {
+      final devices = await getAvailableDevices();
+      
+      for (final device in devices) {
+        if (device.name?.contains('ESP32') ?? false) {
+          print('📱 ESP32 trouvé: ${device.name} - ${device.address}');
+          return connectToDevice(device.address);
+        }
+      }
+      
+      print('⚠️ Aucun ESP32 trouvé dans les appareils appairés');
+      return false;
+      
+    } catch (e) {
+      print('❌ Erreur: $e');
+      return false;
+    }
+  }
+
+  /// Écouter et traiter les données du Bluetooth
+  void _listenToBluetoothData() {
+    if (_connection?.input == null) return;
+    
+    _bluetoothSubscription = _connection!.input!.listen(
+      (Uint8List data) {
+        String received = String.fromCharCodes(data);
+        _buffer += received;
+        
+        // Traiter les blocs JSON complets
+        _processBuffer();
+      },
+      onError: (error) {
+        print('❌ Erreur Bluetooth: $error');
+        disconnect();
+      },
+      onDone: () {
+        print('⚠️ Connexion Bluetooth fermée');
+        disconnect();
+      },
+    );
+  }
+
+  /// Traiter le buffer pour extraire les blocs JSON complets
+  void _processBuffer() {
+    while (true) {
+      // Chercher le début d'un JSON
+      final startIdx = _buffer.indexOf('{');
+      if (startIdx == -1) {
+        _buffer = '';
+        return;
+      }
+
+      // Chercher la fin de ce JSON
+      int braceCount = 0;
+      int endIdx = -1;
+      
+      for (int i = startIdx; i < _buffer.length; i++) {
+        if (_buffer[i] == '{') {
+          braceCount++;
+        } else if (_buffer[i] == '}') {
+          braceCount--;
+          if (braceCount == 0) {
+            endIdx = i;
+            break;
+          }
+        }
+      }
+
+      if (endIdx == -1) {
+        // JSON incomplet, attendre plus de données
+        if (startIdx > 0) {
+          _buffer = _buffer.substring(startIdx);
+        }
+        return;
+      }
+
+      // Extraire et traiter le bloc JSON
+      final jsonBlock = _buffer.substring(startIdx, endIdx + 1);
+      
+      try {
+        // Envoyer les données brutes
+        _bluetoothDataController.add(jsonBlock);
+        
+        // Parser avec ESP32Service
+        _esp32Service.parseAndProcessData(jsonBlock);
+        
+        // Relayer via notre stream aussi
+        final healthData = HealthData.fromJson(jsonDecode(jsonBlock));
+        _healthDataController.add(healthData);
+        
+      } catch (e) {
+        print('⚠️ Erreur parsing JSON: $e');
+        print('   Bloc: $jsonBlock');
+      }
+
+      // Passer au prochain JSON dans le buffer
+      _buffer = _buffer.substring(endIdx + 1);
+    }
+  }
+
+  /// Envoyer une commande à l'ESP32
+  Future<void> sendCommand(String command) async {
+    if (!isConnected || _connection == null) {
+      throw Exception('Non connecté à l\'ESP32');
+    }
+    
+    try {
+      _connection!.output.add(utf8.encode(command + '\n'));
+      await _connection!.output.allSent;
+      print('📤 Commande envoyée: $command');
+      return;
+    } catch (e) {
+      print('❌ Erreur envoi: $e');
+      rethrow;
+    }
+  }
+
+  /// Demander une mesure immédiate
+  Future<void> requestMeasurement() async {
+    await sendCommand('MEASURE');
+  }
+
+  /// Activer la LED d'alerte
+  Future<void> activateLED() async {
+    await sendCommand('LED_ON');
+  }
+
+  /// Désactiver la LED d'alerte
+  Future<void> deactivateLED() async {
+    await sendCommand('LED_OFF');
+  }
+
+  /// Demander le statut de l'ESP32
+  Future<void> requestStatus() async {
+    await sendCommand('STATUS');
+  }
+
+  /// Configurer l'intervalle de mesure en millisecondes
+  Future<void> setMeasureInterval(int intervalMs) async {
+    if (intervalMs < 100) {
+      throw Exception('Intervalle minimum: 100ms');
+    }
+    await sendCommand('SET_INTERVAL:$intervalMs');
+  }
+
+  /// Configurer les seuils de l'ESP32
+  Future<void> setThreshold(String metric, double minVal, double maxVal) async {
+    // Cette commande dépend de l'implémentation ESP32
+    // À adapter selon vos besoins
+    await sendCommand('SET_THRESHOLD $metric $minVal $maxVal');
+  }
+
+  /// Déconnecter
+  Future<void> disconnect() async {
+    try {
+      await _connection?.close();
+      _connection = null;
+      _isConnected = false;
+      _connectedDeviceAddress = null;
+      await _bluetoothSubscription?.cancel();
+      _buffer = '';
+      _esp32Service.setConnectionStatus(false);
+      print('✓ Déconnecté');
+    } catch (e) {
+      print('❌ Erreur déconnexion: $e');
+    }
+  }
+
+  /// Fermer et nettoyer les ressources
   void dispose() {
-    _bluetoothSubscription?.cancel();
-    _connection?.dispose();
+    disconnect();
     _bluetoothDataController.close();
+    _healthDataController.close();
     _esp32Service.dispose();
   }
 }

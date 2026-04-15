@@ -9,7 +9,7 @@ import 'device_connectivity.dart';
 import 'health_dashboard.dart';
 import 'health_history.dart';
 import 'heart_rate_analysis.dart';
-import 'live_dashboard_updated.dart';
+import 'live_dashboard_wifi.dart';
 
 void main() {
   runApp(const HealthApp());
@@ -46,7 +46,7 @@ class _MainNavigationState extends State<MainNavigation> {
   int _currentIndex = 0;
 
   final List<Widget> _pages = const [
-    LiveDashboardUpdated(),
+    LiveDashboardWiFi(),
     DeviceConnectivity(),
     HealthDashboard(),
     HealthHistory(),

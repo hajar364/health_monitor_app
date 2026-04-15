@@ -7,100 +7,191 @@ class DeviceConnectivity extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Device Connectivity"),
+        title: const Text("WiFi Connectivity"),
+        backgroundColor: Color(0xFF135BEC),
       ),
-      body: SingleChildScrollView(   // ✅ Correction : scrollable
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Scanning progress
-            const Text(
-              "Scanning for medical devices (10 ft range)",
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            const LinearProgressIndicator(
-              value: 0.65, // 65% progress
-              backgroundColor: Colors.grey,
-              color: Colors.blue,
-              minHeight: 8,
+            // ESP32 Status Card
+            Card(
+              color: Colors.green.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(Icons.cloud_done, color: Colors.green, size: 28),
+                        SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              "✅ Connected to ESP32",
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.green.shade700,
+                              ),
+                            ),
+                            Text(
+                              "WiFi AP: ESP32_HealthMonitor",
+                              style: TextStyle(fontSize: 13, color: Colors.grey),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    _buildInfoRow("IP Address:", "192.168.4.1"),
+                    _buildInfoRow("Signal Strength:", "89% (-51 dBm)"),
+                    _buildInfoRow("Data Rate:", "72 Mbps"),
+                    _buildInfoRow("Connection Time:", "2 hours 45 min"),
+                  ],
+                ),
+              ),
             ),
             const SizedBox(height: 24),
 
-            // Available Devices
+            // Device Information
             const Text(
-              "Available Devices",
+              "ESP32 Device Information",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 12),
-
-            DeviceTile(
-              name: "ESP32 Health Sensor",
-              id: "4F:E2:B9:10:94:77",
-              status: "Pair",
-              buttonColor: Colors.blue,
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    _buildDeviceInfo("Device Name:", "ESP32_HealthMonitor"),
+                    _buildDeviceInfo("Firmware Version:", "v2.1.0"),
+                    _buildDeviceInfo("MAC Address:", "48:E7:29:A4:21:74"),
+                    _buildDeviceInfo("Uptime:", "72 hours 15 minutes"),
+                    _buildDeviceInfo("Free Memory:", "156 KB"),
+                    _buildDeviceInfo("Sensor Type:", "Multi-parameter IoT"),
+                  ],
+                ),
+              ),
             ),
-            DeviceTile(
-              name: "Smart B.P. Monitor",
-              id: "2A:C1:99:43:F2:12",
-              status: "Wait",
-              buttonColor: Colors.grey,
-            ),
-            DeviceTile(
-              name: "MedTemp Pro V2",
-              id: "88:5D:12:92:90:11",
-              status: "Wait",
-              buttonColor: Colors.grey,
-            ),
-
             const SizedBox(height: 24),
 
-            // Pairing Instructions
+            // Network Stats
             const Text(
-              "PAIRING INSTRUCTIONS",
+              "Network Statistics",
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  children: [
+                    _buildStatRow("Total Data Sent:", "2.4 MB"),
+                    _buildStatRow("Total Data Received:", "18.7 MB"),
+                    _buildStatRow("Packets Lost:", "0.2%"),
+                    _buildStatRow("Average Ping:", "12 ms"),
+                    _buildStatRow("Current Bandwidth:", "145 KB/s"),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Connection Instructions
+            const Text(
+              "WiFi Connection Setup",
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
-            const Text("1. Ensure your ESP32 device is in Discovery Mode (blue light blinking)."),
-            const Text("2. Select the device from the list above to initiate secure handshake."),
-            const Text("3. Accept the pairing request on both phone and device screen if prompted."),
+            const Text(
+              "1. Ensure ESP32 device is powered on\n"
+              "2. Look for WiFi network: ESP32_HealthMonitor\n"
+              "3. No password required to connect\n"
+              "4. App will auto-detect and connect\n"
+              "5. Make sure device is within 30m range",
+              style: TextStyle(fontSize: 13, height: 1.6),
+            ),
+            const SizedBox(height: 24),
+
+            // Troubleshooting
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.shade50,
+                border: Border.all(color: Colors.amber),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "⚠️ Troubleshooting",
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber.shade700,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    "• Can't find WiFi? Restart the ESP32\n"
+                    "• Connection drops? Check power supply\n"
+                    "• Slow response? Move closer to device\n"
+                    "• Need factory reset? Long press button 5sec",
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
           ],
         ),
       ),
-
     );
   }
-}
 
-class DeviceTile extends StatelessWidget {
-  final String name;
-  final String id;
-  final String status;
-  final Color buttonColor;
+  Widget _buildInfoRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
+      ),
+    );
+  }
 
-  const DeviceTile({
-    super.key,
-    required this.name,
-    required this.id,
-    required this.status,
-    required this.buttonColor,
-  });
+  Widget _buildDeviceInfo(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, 
+            style: const TextStyle(fontWeight: FontWeight.w600),
+            textAlign: TextAlign.end,
+          ),
+        ],
+      ),
+    );
+  }
 
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 6),
-      child: ListTile(
-        title: Text(name, style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text("ID: $id"),
-        trailing: ElevatedButton(
-          style: ElevatedButton.styleFrom(backgroundColor: buttonColor),
-          onPressed: () {
-            // action de pairing
-          },
-          child: Text(status),
-        ),
+  Widget _buildStatRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: const TextStyle(color: Colors.grey)),
+          Text(value, style: const TextStyle(fontWeight: FontWeight.w600)),
+        ],
       ),
     );
   }
