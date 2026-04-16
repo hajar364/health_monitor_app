@@ -20,6 +20,29 @@ dependencies:
   # Date formatting for timestamps
   intl: ^0.18.1
 
+  # State Management
+  flutter_riverpod: ^2.4.0
+  riverpod: ^2.4.0
+
+  # Real-time Charts
+  fl_chart: ^0.65.0
+
+  # Local Storage
+  hive: ^2.2.0
+  hive_flutter: ^1.1.0
+
+  # Notifications & Alerts (désactivé temporairement - problème compilation)
+  # flutter_local_notifications: ^14.0.0
+
+  # WiFi Connectivity
+  connectivity_plus: ^5.0.0
+
+  # Emergency Calls
+  url_launcher: ^6.2.0
+
+  # Utilities
+  uuid: ^4.0.0
+
 
 dev_dependencies:
   flutter_test:

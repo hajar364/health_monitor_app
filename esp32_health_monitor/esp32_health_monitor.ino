@@ -1,53 +1,306 @@
 /*
- * SYSTÈME IoT DE SURVEILLANCE DE SANTÉ
- * Architecture distribuée avec interprétabilité locale
+ * SYSTÈME DE DÉTECTION DE CHUTE - ESP32
  * 
  * Microcontrôleur: ESP32
- * Plateforme: Arduino IDE / PlatformIO
- * 
  * Capteurs:
- * - KY-039 (Fréquence Cardiaque)
- * - DHT22 (Température/Humidité)
- * - MPU6050 (Accélération/Gyroscope)
+ *   - MPU6050: Accéléromètre + Gyroscope (détection chute)
+ *   - MLX90614: Capteur thermique sans contact (température)
  * 
- * Communication: Bluetooth (HC-05/HC-06 ou ESP32 interne)
+ * Communication: WiFi/TCP Socket Server (Port 5000)
+ * 
+ * Format données transmises:
+ * {
+ *   "timestamp": 1713282600,
+ *   "accel": {"x": 0.1, "y": 0.2, "z": -9.8},
+ *   "gyro": {"x": 0.5, "y": -0.2, "z": 0.1},
+ *   "temperature": 36.5,
+ *   "isFalling": false,
+ *   "signal_strength": -50
+ * }
  */
 
 #include <Wire.h>
-#include <DHT.h>
-
-// ========== IMPORTS CAPTEURS ==========
-// Télécharger depuis Arduino IDE: Library Manager
-// DHT by Adafruit
-// MPU6050 by ElectroMech
-
+#include <WiFi.h>
+#include <WebServer.h>
+#include <Adafruit_MLX90614.h>
 #include <MPU6050.h>
+#include <ArduinoJson.h>
 
-// ========== DÉFINITION DES BROCHES ==========
-#define DHT_PIN 4                  // GPIO4 - DHT22 Data
-#define DHT_TYPE DHT22             // Type de capteur DHT
-#define HEART_RATE_PIN 35          // GPIO35 (ADC1_7) - Capteur FC
-#define ALERT_LED_PIN 13           // GPIO13 - LED d'alerte
-#define BUTTON_TEST_PIN 14         // GPIO14 - Bouton test (optionnel)
+// ========== CONFIGURATION WiFi ==========
+const char* SSID = "your_ssid";           // À configurer
+const char* PASSWORD = "your_password";   // À configurer
+const int TCP_PORT = 5000;
 
-// ========== CONFIGURATION SEUILS D'ANOMALIES ==========
-#define HEART_RATE_MIN 40          // BPM minimum normal
-#define HEART_RATE_MAX 120         // BPM maximum normal
-#define HEART_RATE_RESTING_MIN 60  // Au repos: seuil bas
-#define HEART_RATE_RESTING_MAX 100 // Au repos: seuil haut
+WiFiServer server(TCP_PORT);
+WiFiClient serverClient;
 
-#define TEMP_NORMAL_MAX 37.5       // °C - Température normale max
-#define TEMP_FEVER_MIN 38.0        // °C - Début fièvre
-#define TEMP_CRITICAL 39.5         // °C - Critique
-
-#define HUMIDITY_MIN 30            // % - Humidité minimale
-#define HUMIDITY_MAX 70            // % - Humidité maximale
-
-#define ACCEL_NORMAL_MIN 0.5       // g - Seuil minimum accélération normale
-#define ACCEL_NORMAL_MAX 3.0       // g - Seuil maximum accélération normale
+// ========== BROCHES GPIO ==========
+#define MPU6050_SCL 22              // I2C Clock
+#define MPU6050_SDA 21              // I2C Data
+#define ALERT_LED_PIN 12            // LED alerte
+#define BUTTON_PIN 13               // Bouton test (optionnel)
 
 // ========== OBJETS CAPTEURS ==========
-DHT dht(DHT_PIN, DHT_TYPE);
+MPU6050 mpu;
+Adafruit_MLX90614 mlx;
+
+// ========== VARIABLES GLOBALES ==========
+struct SensorData {
+  float accelX, accelY, accelZ;      // Accélération (g)
+  float gyroX, gyroY, gyroZ;         // Vitesse angulaire (°/s)
+  float temperature;                 // Température (°C)
+  float accelMagnitude;              // Magnitude accélération
+  bool isFalling;                    // Détection chute
+  uint32_t timestamp;
+};
+
+SensorData currentData;
+
+// Seuils de détection de chute
+#define FALL_ACCEL_THRESHOLD 1.5   // g
+#define FALL_GYRO_THRESHOLD 100.0  // °/s
+#define CALIBRATION_SAMPLES 100
+
+// Buffers ringulaires pour lissage
+#define BUFFER_SIZE 20
+float accelBuffer[BUFFER_SIZE];
+int bufferIndex = 0;
+
+// ========== SETUP ==========
+void setup() {
+  Serial.begin(115200);
+  delay(1000);
+  
+  Serial.println("\n\n=== FALL DETECTION SYSTEM ===");
+  
+  // Initialiser I2C
+  Wire.begin(MPU6050_SDA, MPU6050_SCL);
+  
+  // Initialiser MPU6050
+  if (!mpu.begin(MPU6050_ADDR_0x68)) {
+    Serial.println("❌ MPU6050 non trouvé!");
+    while (1);
+  }
+  mpu.setFullScaleAccelRange(MPU6050_ACCEL_FS_16);
+  mpu.setFullScaleGyroRange(MPU6050_GYRO_FS_500);
+  Serial.println("✅ MPU6050 initialisé");
+  
+  // Initialiser MLX90614
+  if (!mlx.begin()) {
+    Serial.println("❌ MLX90614 non trouvé!");
+    while (1);
+  }
+  Serial.println("✅ MLX90614 initialisé");
+  
+  // GPIO
+  pinMode(ALERT_LED_PIN, OUTPUT);
+  pinMode(BUTTON_PIN, INPUT_PULLUP);
+  
+  // WiFi
+  connectToWiFi();
+  
+  // Démarrer serveur TCP
+  server.begin();
+  Serial.println("✅ Serveur TCP démarré sur port " + String(TCP_PORT));
+  Serial.println("📡 Adresse IP: " + WiFi.localIP().toString());
+  
+  // Calibrer accélération de repos
+  calibrateAcceleration();
+}
+
+// ========== LOOP PRINCIPALE ==========
+void loop() {
+  // Lire capteurs
+  readSensors();
+  
+  // Détecter chute
+  detectFall();
+  
+  // Envoyer données via TCP
+  sendTCPData();
+  
+  // Vérifier commandes TCP
+  handleTCPCommands();
+  
+  delay(100);  // ~10Hz
+}
+
+// ========== LECTURE CAPTEURS ==========
+void readSensors() {
+  // MPU6050
+  mpu.getAcceleration(&currentData.accelX, &currentData.accelY, &currentData.accelZ);
+  mpu.getRotation(&currentData.gyroX, &currentData.gyroY, &currentData.gyroZ);
+  
+  // Convertir en unités standards
+  currentData.accelX /= 2048.0;  // pour range ±16g
+  currentData.accelY /= 2048.0;
+  currentData.accelZ /= 2048.0;
+  
+  currentData.gyroX /= 65.5;     // pour range ±500°/s
+  currentData.gyroY /= 65.5;
+  currentData.gyroZ /= 65.5;
+  
+  // Magnitude accélération
+  currentData.accelMagnitude = sqrt(
+    currentData.accelX * currentData.accelX +
+    currentData.accelY * currentData.accelY +
+    currentData.accelZ * currentData.accelZ
+  );
+  
+  // MLX90614 - Température
+  currentData.temperature = mlx.readObjectTempC();
+  
+  // Timestamp
+  currentData.timestamp = millis() / 1000;
+  
+  currentData.isFalling = false;  // À mettre à jour par detectFall()
+}
+
+// ========== DÉTECTION CHUTE ==========
+void detectFall() {
+  // Ajouter au buffer
+  accelBuffer[bufferIndex] = currentData.accelMagnitude;
+  bufferIndex = (bufferIndex + 1) % BUFFER_SIZE;
+  
+  // Calculer moyenne lissée
+  float avgAccel = 0;
+  for (int i = 0; i < BUFFER_SIZE; i++) {
+    avgAccel += accelBuffer[i];
+  }
+  avgAccel /= BUFFER_SIZE;
+  
+  // Détection simple 3-seuils:
+  // 1. Pic accélération > seuil
+  // 2. Vitesse angulaire élevée (changement d'orientation)
+  // 3. Position au sol (accél stabilisée)
+  
+  float gyroMag = sqrt(
+    currentData.gyroX * currentData.gyroX +
+    currentData.gyroY * currentData.gyroY +
+    currentData.gyroZ * currentData.gyroZ
+  );
+  
+  bool highAccel = (currentData.accelMagnitude > 1.5 * FALL_ACCEL_THRESHOLD);
+  bool highGyro = (gyroMag > FALL_GYRO_THRESHOLD);
+  bool closedToG = (avgAccel > 8.5 && avgAccel < 11.0);  // ~9.8g (au sol)
+  
+  // Chute probable si pic accel + rotation + position sol
+  if (highAccel && highGyro && closedToG) {
+    currentData.isFalling = true;
+    alertFall();
+  }
+}
+
+// ========== ALERTE CHUTE ==========
+void alertFall() {
+  Serial.println("🚨 CHUTE DÉTECTÉE!");
+  
+  // Clignoter LED
+  for (int i = 0; i < 5; i++) {
+    digitalWrite(ALERT_LED_PIN, HIGH);
+    delay(200);
+    digitalWrite(ALERT_LED_PIN, LOW);
+    delay(200);
+  }
+  
+  // Son (optionnel)
+  // tone(BUZZER_PIN, 1000, 500);
+}
+
+// ========== CALIBRATION ==========
+void calibrateAcceleration() {
+  Serial.println("📊 Calibration en cours...");
+  
+  for (int i = 0; i < CALIBRATION_SAMPLES; i++) {
+    readSensors();
+    delay(50);
+  }
+  
+  Serial.println("✅ Calibration terminée");
+}
+
+// ========== WiFi ==========
+void connectToWiFi() {
+  Serial.print("🌐 Connexion à WiFi: ");
+  Serial.println(SSID);
+  
+  WiFi.begin(SSID, PASSWORD);
+  int attempts = 0;
+  
+  while (WiFi.status() != WL_CONNECTED && attempts < 20) {
+    delay(500);
+    Serial.print(".");
+    attempts++;
+  }
+  
+  if (WiFi.status() == WL_CONNECTED) {
+    Serial.println("\n✅ Connecté!");
+    Serial.print("📍 IP: ");
+    Serial.println(WiFi.localIP());
+  } else {
+    Serial.println("\n❌ Erreur WiFi!");
+  }
+}
+
+// ========== TCP SERVER ==========
+void handleTCPCommands() {
+  // Accepter nouvelle connexion
+  if (server.hasClient()) {
+    if (!serverClient) {
+      serverClient = server.accept();
+      Serial.println("📱 Client connecté");
+    }
+  }
+  
+  // Lire commandes
+  if (serverClient && serverClient.connected()) {
+    if (serverClient.available()) {
+      String command = serverClient.readStringUntil('\n');
+      command.trim();
+      
+      if (command == "PING") {
+        serverClient.println("PONG");
+      } else if (command == "STATUS") {
+        serverClient.println("OK");
+      } else if (command == "LED_ON") {
+        digitalWrite(ALERT_LED_PIN, HIGH);
+        serverClient.println("✅ LED ON");
+      } else if (command == "LED_OFF") {
+        digitalWrite(ALERT_LED_PIN, LOW);
+        serverClient.println("✅ LED OFF");
+      }
+    }
+  }
+}
+
+// ========== SEND TCP DATA ==========
+void sendTCPData() {
+  if (serverClient && serverClient.connected()) {
+    // Créer JSON
+    StaticJsonDocument<256> doc;
+    
+    doc["timestamp"] = currentData.timestamp;
+    doc["accel"]["x"] = currentData.accelX;
+    doc["accel"]["y"] = currentData.accelY;
+    doc["accel"]["z"] = currentData.accelZ;
+    doc["gyro"]["x"] = currentData.gyroX;
+    doc["gyro"]["y"] = currentData.gyroY;
+    doc["gyro"]["z"] = currentData.gyroZ;
+    doc["temperature"] = currentData.temperature;
+    doc["isFalling"] = currentData.isFalling;
+    doc["signal_strength"] = WiFi.RSSI();
+    
+    // Envoyer
+    serializeJson(doc, serverClient);
+    serverClient.println();  // Newline pour délimiter
+  }
+}
+
+// ========== ENDPOINTS HTTP (optionnel) ==========
+void setupHTTPServer() {
+  // Pour future implémentation avec WebServer
+  // Endpoints: /ping, /sensors, /status
+}
 MPU6050 mpu;
 
 // ========== STRUCTURE DE DONNÉES SANTÉ ==========

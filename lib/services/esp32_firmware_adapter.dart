@@ -1,5 +1,4 @@
 import 'package:health_monitor_app/models/health_data.dart';
-import 'dart:convert';
 
 /// Adaptateur pour le firmware ESP32 avec MAX30100, MLX90614, MPU6050
 class ESP32FirmwareAdapter {
@@ -21,7 +20,7 @@ class ESP32FirmwareAdapter {
       int irValue = 0;
       int redValue = 0;
       int accelX = 0, accelY = 0, accelZ = 0;
-      int gyroX = 0, gyroY = 0, gyroZ = 0;
+      // Note: gyro values are parsed but not used in HealthData
       bool alerte = false;
       
       // Parse chaque ligne
@@ -56,16 +55,17 @@ class ESP32FirmwareAdapter {
           final accelXMatch = RegExp(r'Accel.*X=(-?\d+)').firstMatch(line);
           final accelYMatch = RegExp(r'Accel.*Y=(-?\d+)').firstMatch(line);
           final accelZMatch = RegExp(r'Accel.*Z=(-?\d+)').firstMatch(line);
-          final gyroXMatch = RegExp(r'Gyro.*X=(-?\d+)').firstMatch(line);
-          final gyroYMatch = RegExp(r'Gyro.*Y=(-?\d+)').firstMatch(line);
-          final gyroZMatch = RegExp(r'Gyro.*Z=(-?\d+)').firstMatch(line);
+          // Note: Gyro parsing is available but not used in HealthData model
+          // final gyroXMatch = RegExp(r'Gyro.*X=(-?\d+)').firstMatch(line);
+          // final gyroYMatch = RegExp(r'Gyro.*Y=(-?\d+)').firstMatch(line);
+          // final gyroZMatch = RegExp(r'Gyro.*Z=(-?\d+)').firstMatch(line);
           
           if (accelXMatch != null) accelX = int.parse(accelXMatch.group(1) ?? '0');
           if (accelYMatch != null) accelY = int.parse(accelYMatch.group(1) ?? '0');
           if (accelZMatch != null) accelZ = int.parse(accelZMatch.group(1) ?? '0');
-          if (gyroXMatch != null) gyroX = int.parse(gyroXMatch.group(1) ?? '0');
-          if (gyroYMatch != null) gyroY = int.parse(gyroYMatch.group(1) ?? '0');
-          if (gyroZMatch != null) gyroZ = int.parse(gyroZMatch.group(1) ?? '0');
+          // if (gyroXMatch != null) gyroX = int.parse(gyroXMatch.group(1) ?? '0');
+          // if (gyroYMatch != null) gyroY = int.parse(gyroYMatch.group(1) ?? '0');
+          // if (gyroZMatch != null) gyroZ = int.parse(gyroZMatch.group(1) ?? '0');
         }
         
         // Détection alerte
@@ -94,7 +94,14 @@ class ESP32FirmwareAdapter {
       
     } catch (e) {
       print('❌ Erreur parsing firmware: $e');
-      return HealthData.empty();
+      // Retourner données vides de test
+      return HealthData(
+        heartRate: 0,
+        temperature: 0,
+        timestamp: DateTime.now(),
+        status: HealthStatus.alert,
+        reason: e.toString(),
+      );
     }
   }
 

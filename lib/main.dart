@@ -1,90 +1,90 @@
 import 'package:flutter/material.dart';
-import 'models/health_data.dart';
-import 'services/esp32_service.dart';
-import 'package:intl/intl.dart';
-
-// Import des 6 nouveaux modules
-import 'alerts_notifications.dart';
-import 'device_connectivity.dart';
-import 'health_dashboard.dart';
-import 'health_history.dart';
-import 'heart_rate_analysis.dart';
-import 'live_dashboard_updated.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'screens/fall_dashboard.dart';
+import 'screens/alerts_history_screen.dart';
+import 'screens/patients_management_screen.dart';
+import 'screens/settings_screen.dart';
 
 void main() {
-  runApp(const HealthApp());
+  runApp(const FallDetectionApp());
 }
 
-class HealthApp extends StatelessWidget {
-  const HealthApp({super.key});
+class FallDetectionApp extends StatelessWidget {
+  const FallDetectionApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Health Monitor',
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        primaryColor: const Color(0xFF135BEC),
-        useMaterial3: true,
+    return ProviderScope(
+      child: MaterialApp(
+        title: 'Fall Detection System',
+        debugShowCheckedModeBanner: false,
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          useMaterial3: true,
+          appBarTheme: AppBarTheme(
+            backgroundColor: Colors.blue.shade700,
+            elevation: 4,
+          ),
+        ),
+        home: const AppNavigation(),
       ),
-      home: const MainNavigation(),
     );
   }
 }
-////////////////////////////////////////////////////////////
-/// MAIN NAVIGATION (relie les 6 modules)
-////////////////////////////////////////////////////////////
 
-class MainNavigation extends StatefulWidget {
-  const MainNavigation({super.key});
+/// Navigation principale avec 4 onglets
+class AppNavigation extends StatefulWidget {
+  const AppNavigation({super.key});
 
   @override
-  State<MainNavigation> createState() => _MainNavigationState();
+  State<AppNavigation> createState() => _AppNavigationState();
 }
 
-class _MainNavigationState extends State<MainNavigation> {
+class _AppNavigationState extends State<AppNavigation> {
   int _currentIndex = 0;
 
-  final List<Widget> _pages = const [
-    LiveDashboardUpdated(),
-    DeviceConnectivity(),
-    HealthDashboard(),
-    HealthHistory(),
-    HeartRateAnalysis(),
-    AlertsNotifications(),
-  ];
-
-  final List<String> _titles = const [
-    "Live Dashboard",
-    "Connectivity",
-    "Dashboard",
-    "History",
-    "Heart Analysis",
-    "Alerts",
+  final List<Widget> _screens = const [
+    FallDetectionDashboard(),           // 0: Dashboard
+    AlertsHistoryScreen(),              // 1: Alertes
+    PatientsManagementScreen(),         // 2: Patients
+    SettingsScreen(),                   // 3: Settings
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(_titles[_currentIndex])),
-      body: _pages[_currentIndex],
+      body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
         type: BottomNavigationBarType.fixed,
         currentIndex: _currentIndex,
+        backgroundColor: Colors.white,
+        selectedItemColor: Colors.blue.shade700,
+        unselectedItemColor: Colors.grey,
         onTap: (index) {
           setState(() {
             _currentIndex = index;
           });
         },
         items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: "Live"),
-          BottomNavigationBarItem(icon: Icon(Icons.bluetooth), label: "Connect"),
-          BottomNavigationBarItem(icon: Icon(Icons.show_chart), label: "Dashboard"),
-          BottomNavigationBarItem(icon: Icon(Icons.history), label: "History"),
-          BottomNavigationBarItem(icon: Icon(Icons.favorite), label: "Heart"),
-          BottomNavigationBarItem(icon: Icon(Icons.notifications), label: "Alerts"),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.dashboard),
+            label: 'Dashboard',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.warning),
+            label: 'Alertes',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.people),
+            label: 'Patients',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.settings),
+            label: 'Paramètres',
+          ),
         ],
       ),
     );
   }
 }
+
