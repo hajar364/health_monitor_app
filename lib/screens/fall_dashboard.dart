@@ -48,7 +48,7 @@ class _FallDetectionDashboardState extends State<FallDetectionDashboard> {
 
   void _initializeDashboard() async {
     // Connexion ESP32 de test
-    final connected = await wifiService.connectToESP32('192.168.1.100');
+    final connected = await wifiService.connectToESP32('192.168.30.105');
     
     if (connected) {
       if (mounted) {

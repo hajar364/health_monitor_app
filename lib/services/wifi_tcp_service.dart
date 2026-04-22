@@ -4,7 +4,7 @@ import '../models/fall_detection_data.dart';
 
 class WifiTcpService {
   String? esp32Ip;
-  int esp32Port = 5000;
+  int esp32Port = 80;  // Changé de 5000 à 80
   bool isConnected = false;
   late Stream<IMUSensorData> _sensorStream;
 

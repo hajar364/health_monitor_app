@@ -5,7 +5,7 @@ import '../models/health_data.dart';
 import 'esp32_firmware_adapter.dart';
 
 class ESP32Service {
-  static const String baseUrl = "http://192.168.1.100"; // IP ESP32
+  static const String baseUrl = "http://192.168.30.105"; // Port 80 par défaut
   
   // Streaming Bluetooth
   StreamSubscription? _dataSubscription;
