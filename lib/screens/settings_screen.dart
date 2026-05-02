@@ -1,31 +1,41 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/threshold_settings.dart';
 import '../services/fall_detection_service.dart';
+import '../providers/esp32_ip_provider.dart';
+import 'esp32_setup_screen.dart';
 
-class SettingsScreen extends StatefulWidget {
+class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
 
   @override
-  State<SettingsScreen> createState() => _SettingsScreenState();
+  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends State<SettingsScreen> {
+class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late ThresholdSettings settings;
   late FallDetectionService fallService;
-
-  final ipCtrl = TextEditingController(text: '192.168.1.100');
-  final portCtrl = TextEditingController(text: '5000');
-  final phoneCtrl = TextEditingController(text: '15'); // SAMU France
+  late TextEditingController phoneCtrl;
 
   @override
   void initState() {
     super.initState();
     settings = ThresholdSettings();
     fallService = FallDetectionService(thresholds: settings);
+    phoneCtrl = TextEditingController(text: settings.emergencyNumber ?? '112');
+  }
+
+  @override
+  void dispose() {
+    phoneCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    // Afficher les paramètres ESP32 sauvegardés
+    final esp32Settings = ref.watch(esp32SettingsProvider);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('⚙️ Paramètres'),
@@ -43,39 +53,73 @@ class _SettingsScreenState extends State<SettingsScreen> {
               title: '📡 Connexion ESP32',
               icon: Icons.wifi,
               children: [
-                TextField(
-                  controller: ipCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Adresse IP',
-                    hintText: '192.168.1.100',
-                    prefixIcon: Icon(Icons.router),
+                // Afficher les paramètres actuels
+                esp32Settings.when(
+                  data: (settings) => Column(
+                    children: [
+                      ListTile(
+                        leading: const Icon(Icons.router),
+                        title: const Text('Adresse IP'),
+                        subtitle: Text(settings.ipAddress),
+                        trailing: const Icon(Icons.edit),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ESP32SetupScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      ListTile(
+                        leading: const Icon(Icons.settings_ethernet),
+                        title: const Text('Port'),
+                        subtitle: Text(settings.port.toString()),
+                        trailing: const Icon(Icons.edit),
+                        onTap: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ESP32SetupScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                      if (settings.lastConnectedAt != null)
+                        Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            'Dernière connexion: ${settings.lastConnectedAt}',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: Colors.grey.shade600,
+                            ),
+                          ),
+                        ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const ESP32SetupScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.settings),
+                          label: const Text('Modifier configuration'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.blue.shade600,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: portCtrl,
-                  decoration: const InputDecoration(
-                    labelText: 'Port',
-                    hintText: '5000',
-                    prefixIcon: Icon(Icons.settings_ethernet),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-                const SizedBox(height: 16),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('✅ Paramètres WiFi sauvegardés')),
-                      );
-                    },
-                    icon: const Icon(Icons.save),
-                    label: const Text('Tester Connexion'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.green,
-                    ),
-                  ),
+                  loading: () => const CircularProgressIndicator(),
+                  error: (err, stack) => Text('Erreur: $err'),
                 ),
               ],
             ),
@@ -107,7 +151,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       min: 0.5,
                       max: 2.0,
                       divisions: 6,
-                      label: settings.fallDetectionSensitivity.toStringAsFixed(2),
+                      label: settings.fallDetectionSensitivity
+                          .toStringAsFixed(2),
                       onChanged: (value) {
                         setState(() {
                           settings = settings.copyWith(
@@ -423,13 +468,5 @@ class _SettingsScreenState extends State<SettingsScreen> {
         ),
       ],
     );
-  }
-
-  @override
-  void dispose() {
-    ipCtrl.dispose();
-    portCtrl.dispose();
-    phoneCtrl.dispose();
-    super.dispose();
   }
 }

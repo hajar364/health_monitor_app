@@ -30,6 +30,7 @@ dependencies:
   # Local Storage
   hive: ^2.2.0
   hive_flutter: ^1.1.0
+  shared_preferences: ^2.2.0
 
   # Notifications & Alerts (désactivé temporairement - problème compilation)
   # flutter_local_notifications: ^14.0.0
