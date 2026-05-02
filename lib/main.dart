@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart';
 import 'screens/fall_dashboard.dart';
 import 'screens/alerts_history_screen.dart';
 import 'screens/patients_management_screen.dart';
 import 'screens/settings_screen.dart';
+import 'providers/esp32_ip_provider.dart';
 
 void main() {
   runApp(const FallDetectionApp());
@@ -14,7 +15,11 @@ class FallDetectionApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ProviderScope(
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => ESP32SettingsNotifier()),
+        ChangeNotifierProvider(create: (_) => WifiServiceNotifier()),
+      ],
       child: MaterialApp(
         title: 'Fall Detection System',
         debugShowCheckedModeBanner: false,

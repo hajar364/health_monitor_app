@@ -1,5 +1,5 @@
 import 'dart:convert';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/fall_detection_data.dart';
 import '../services/wifi_tcp_service.dart';
@@ -67,130 +67,43 @@ class ESP32Settings {
 }
 
 // ============================================================
-// PROVIDERS
+// NOTIFIER CLASS - Gère la persistance des paramètres avec ChangeNotifier
 // ============================================================
 
-// Accéder à SharedPreferences
-final sharedPreferencesProvider = FutureProvider<SharedPreferences>((ref) async {
-  return await SharedPreferences.getInstance();
-});
+class ESP32SettingsNotifier extends ChangeNotifier {
+  ESP32Settings _settings = ESP32Settings(ipAddress: '192.168.1.100');
+  bool _isLoading = true;
+  String? _error;
 
-// Provider principal pour les paramètres ESP32 avec persistance
-final esp32SettingsProvider =
-    StateNotifierProvider<ESP32SettingsNotifier, AsyncValue<ESP32Settings>>((ref) {
-  return ESP32SettingsNotifier();
-});
+  ESP32Settings get settings => _settings;
+  bool get isLoading => _isLoading;
+  String? get error => _error;
 
-// Provider pour le WiFi service
-final wifiServiceProvider = Provider<WifiTcpService>((ref) {
-  return WifiTcpService();
-});
-
-// Provider stream pour les données des capteurs en temps réel
-final esp32SensorStreamProvider = StreamProvider<IMUSensorData>((ref) async* {
-  try {
-    final settings = ref.watch(esp32SettingsProvider).maybeWhen(
-          data: (s) => s,
-          orElse: () => null,
-        );
-
-    if (settings == null) throw Exception('Paramètres ESP32 non chargés');
-
-    final wifiService = ref.watch(wifiServiceProvider);
-
-    // Connecter à l'ESP32 d'abord
-    final connected = await wifiService.connectToESP32(
-      settings.ipAddress,
-      port: settings.port,
-    );
-
-    if (!connected) {
-      throw Exception(
-          'Impossible de se connecter à l\'ESP32 ${settings.ipAddress}:${settings.port}');
-    }
-
-    // Émettre les données du stream
-    await for (final data in wifiService.getSensorDataStream()) {
-      yield data;
-    }
-  } catch (e) {
-    throw Exception('Erreur stream capteurs: $e');
-  }
-});
-
-// Provider utile pour accéder rapidement à l'IP sauvegardée
-final savedIPProvider = FutureProvider<String>((ref) async {
-  final prefs = await SharedPreferences.getInstance();
-  return prefs.getString('esp32_ip') ?? '192.168.1.100';
-});
-
-// Provider pour accéder à la dernière IP connue (synchrone)
-final lastKnownIPProvider = Provider<String>((ref) {
-  return ref.watch(esp32SettingsProvider).when(
-        data: (settings) => settings.ipAddress,
-        loading: () => '192.168.1.100',
-        error: (_, __) => '192.168.1.100',
-      );
-});
-
-// Provider pour l'état de connexion
-final esp32ConnectionStatusProvider = StreamProvider<bool>((ref) async* {
-  try {
-    final wifiService = ref.watch(wifiServiceProvider);
-
-    while (true) {
-      try {
-        final settings = ref.watch(esp32SettingsProvider).maybeWhen(
-              data: (s) => s,
-              orElse: () => null,
-            );
-
-        if (settings != null) {
-          final connected = await wifiService.connectToESP32(
-            settings.ipAddress,
-            port: settings.port,
-          );
-          yield connected;
-        } else {
-          yield false;
-        }
-      } catch (e) {
-        yield false;
-      }
-      await Future.delayed(const Duration(seconds: 5));
-    }
-  } catch (e) {
-    yield false;
-  }
-});
-
-// ============================================================
-// NOTIFIER CLASS - Gère la persistance des paramètres
-// ============================================================
-
-class ESP32SettingsNotifier extends StateNotifier<AsyncValue<ESP32Settings>> {
-  ESP32SettingsNotifier() : super(const AsyncValue.loading()) {
+  ESP32SettingsNotifier() {
     _loadSettings();
   }
 
   Future<void> _loadSettings() async {
     try {
+      _isLoading = true;
+      _error = null;
+      notifyListeners();
+
       final prefs = await SharedPreferences.getInstance();
       final settingsJson = prefs.getString('esp32_settings');
 
       if (settingsJson != null && settingsJson.isNotEmpty) {
-        // Charger depuis SharedPreferences
         final json = jsonDecode(settingsJson) as Map<String, dynamic>;
-        final settings = ESP32Settings.fromJson(json);
-        state = AsyncValue.data(settings);
+        _settings = ESP32Settings.fromJson(json);
       } else {
-        // Paramètres par défaut
-        state = AsyncValue.data(
-          ESP32Settings(ipAddress: '192.168.1.100'),
-        );
+        _settings = ESP32Settings(ipAddress: '192.168.1.100');
       }
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
+      _isLoading = false;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -199,87 +112,91 @@ class ESP32SettingsNotifier extends StateNotifier<AsyncValue<ESP32Settings>> {
       final prefs = await SharedPreferences.getInstance();
       final json = jsonEncode(settings.toJson());
       await prefs.setString('esp32_settings', json);
-      
-      // Sauvegarder aussi l'IP seule pour accès rapide
-      await prefs.setString('esp32_ip', settings.ipAddress);
-      
-      state = AsyncValue.data(settings);
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
+      _settings = settings;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
     }
   }
 
-  Future<void> saveIPAddress(String ipAddress) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      if (state.hasValue) {
-        final currentSettings = state.value!;
-        final updatedSettings = currentSettings.copyWith(
-          ipAddress: ipAddress,
-          lastConnectedAt: DateTime.now(),
-        );
-
-        final json = jsonEncode(updatedSettings.toJson());
-        await prefs.setString('esp32_settings', json);
-        await prefs.setString('esp32_ip', ipAddress);
-
-        state = AsyncValue.data(updatedSettings);
-      }
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
-    }
+  Future<void> saveIPAddress(String ip) async {
+    final updated = _settings.copyWith(ipAddress: ip);
+    await saveSettings(updated);
   }
 
   Future<void> savePort(int port) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      if (state.hasValue) {
-        final currentSettings = state.value!;
-        final updatedSettings = currentSettings.copyWith(port: port);
-
-        final json = jsonEncode(updatedSettings.toJson());
-        await prefs.setString('esp32_settings', json);
-
-        state = AsyncValue.data(updatedSettings);
-      }
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
-    }
+    final updated = _settings.copyWith(port: port);
+    await saveSettings(updated);
   }
 
   Future<void> updateLastConnectedTime() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-
-      if (state.hasValue) {
-        final currentSettings = state.value!;
-        final updatedSettings = currentSettings.copyWith(
-          lastConnectedAt: DateTime.now(),
-        );
-
-        final json = jsonEncode(updatedSettings.toJson());
-        await prefs.setString('esp32_settings', json);
-
-        state = AsyncValue.data(updatedSettings);
-      }
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
-    }
+    final updated = _settings.copyWith(lastConnectedAt: DateTime.now());
+    await saveSettings(updated);
   }
 
   Future<void> clearSettings() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       await prefs.remove('esp32_settings');
-      await prefs.remove('esp32_ip');
-
-      state = AsyncValue.data(
-        ESP32Settings(ipAddress: '192.168.1.100'),
-      );
-    } catch (e, stackTrace) {
-      state = AsyncValue.error(e, stackTrace);
+      _settings = ESP32Settings(ipAddress: '192.168.1.100');
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
     }
   }
 }
+
+// ============================================================
+// WIFI SERVICE NOTIFIER
+// ============================================================
+
+class WifiServiceNotifier extends ChangeNotifier {
+  final WifiTcpService _wifiService = WifiTcpService();
+  bool _isConnected = false;
+  String? _error;
+
+  WifiTcpService get service => _wifiService;
+  bool get isConnected => _isConnected;
+  String? get error => _error;
+
+  Future<bool> connectToESP32(String ip, {int port = 5000}) async {
+    try {
+      _error = null;
+      _isConnected = await _wifiService.connectToESP32(ip, port: port);
+      notifyListeners();
+      return _isConnected;
+    } catch (e) {
+      _error = e.toString();
+      _isConnected = false;
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<void> disconnect() async {
+    try {
+      await _wifiService.disconnect();
+      _isConnected = false;
+      notifyListeners();
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+}
+
+
+// ============================================================
+// PROVIDER INSTANCES - À utiliser dans les widgets avec Provider
+// ============================================================
+
+// Import this in your main.dart:
+// final esp32SettingsProvider = ChangeNotifierProvider<ESP32SettingsNotifier>((ref) {
+//   return ESP32SettingsNotifier();
+// });
+//
+// final wifiServiceProvider = ChangeNotifierProvider<WifiServiceNotifier>((ref) {
+//   return WifiServiceNotifier();
+// });

@@ -1,18 +1,18 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart';
 import '../models/threshold_settings.dart';
 import '../services/fall_detection_service.dart';
 import '../providers/esp32_ip_provider.dart';
 import 'esp32_setup_screen.dart';
 
-class SettingsScreen extends ConsumerStatefulWidget {
+class SettingsScreen extends StatefulWidget {
   const SettingsScreen({Key? key}) : super(key: key);
 
   @override
-  ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
+  State<SettingsScreen> createState() => _SettingsScreenState();
 }
 
-class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+class _SettingsScreenState extends State<SettingsScreen> {
   late ThresholdSettings settings;
   late FallDetectionService fallService;
   late TextEditingController phoneCtrl;
@@ -33,8 +33,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // Afficher les paramètres ESP32 sauvegardés
-    final esp32Settings = ref.watch(esp32SettingsProvider);
+    // Accéder à ESP32SettingsNotifier via Provider
+    final esp32Settings = context.watch<ESP32SettingsNotifier>();
 
     return Scaffold(
       appBar: AppBar(
@@ -54,13 +54,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               icon: Icons.wifi,
               children: [
                 // Afficher les paramètres actuels
-                esp32Settings.when(
-                  data: (settings) => Column(
+                if (esp32Settings.isLoading)
+                  const CircularProgressIndicator()
+                else if (esp32Settings.error != null)
+                  Text('Erreur: ${esp32Settings.error}')
+                else
+                  Column(
                     children: [
                       ListTile(
                         leading: const Icon(Icons.router),
                         title: const Text('Adresse IP'),
-                        subtitle: Text(settings.ipAddress),
+                        subtitle: Text(esp32Settings.settings.ipAddress),
                         trailing: const Icon(Icons.edit),
                         onTap: () {
                           Navigator.push(
@@ -74,7 +78,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ListTile(
                         leading: const Icon(Icons.settings_ethernet),
                         title: const Text('Port'),
-                        subtitle: Text(settings.port.toString()),
+                        subtitle: Text(esp32Settings.settings.port.toString()),
                         trailing: const Icon(Icons.edit),
                         onTap: () {
                           Navigator.push(
@@ -85,11 +89,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           );
                         },
                       ),
-                      if (settings.lastConnectedAt != null)
+                      if (esp32Settings.settings.lastConnectedAt != null)
                         Padding(
                           padding: const EdgeInsets.all(12),
                           child: Text(
-                            'Dernière connexion: ${settings.lastConnectedAt}',
+                            'Dernière connexion: ${esp32Settings.settings.lastConnectedAt}',
                             style: TextStyle(
                               fontSize: 12,
                               color: Colors.grey.shade600,
@@ -118,9 +122,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ],
                   ),
-                  loading: () => const CircularProgressIndicator(),
-                  error: (err, stack) => Text('Erreur: $err'),
-                ),
               ],
             ),
             const SizedBox(height: 24),
