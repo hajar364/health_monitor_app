@@ -5,6 +5,7 @@ import 'screens/alerts_history_screen.dart';
 import 'screens/patients_management_screen.dart';
 import 'screens/settings_screen.dart';
 import 'providers/esp32_ip_provider.dart';
+import 'services/alert_service.dart';
 
 void main() {
   runApp(const FallDetectionApp());
@@ -19,9 +20,11 @@ class FallDetectionApp extends StatelessWidget {
       providers: [
         ChangeNotifierProvider(create: (_) => ESP32SettingsNotifier()),
         ChangeNotifierProvider(create: (_) => WifiServiceNotifier()),
+        ChangeNotifierProvider(create: (_) => ThresholdSettingsNotifier()),
+        ChangeNotifierProvider(create: (_) => AlertService()),
       ],
       child: MaterialApp(
-        title: 'Fall Detection System',
+        title: 'VeilGuard',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.blue,
@@ -57,6 +60,8 @@ class _AppNavigationState extends State<AppNavigation> {
 
   @override
   Widget build(BuildContext context) {
+    final unresolved = context.watch<AlertService>().unresolvedCount;
+
     return Scaffold(
       body: _screens[_currentIndex],
       bottomNavigationBar: BottomNavigationBar(
@@ -70,20 +75,24 @@ class _AppNavigationState extends State<AppNavigation> {
             _currentIndex = index;
           });
         },
-        items: const [
-          BottomNavigationBarItem(
+        items: [
+          const BottomNavigationBarItem(
             icon: Icon(Icons.dashboard),
             label: 'Dashboard',
           ),
           BottomNavigationBarItem(
-            icon: Icon(Icons.warning),
+            icon: Badge(
+              isLabelVisible: unresolved > 0,
+              label: Text('$unresolved'),
+              child: const Icon(Icons.warning),
+            ),
             label: 'Alertes',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.people),
             label: 'Patients',
           ),
-          BottomNavigationBarItem(
+          const BottomNavigationBarItem(
             icon: Icon(Icons.settings),
             label: 'Paramètres',
           ),

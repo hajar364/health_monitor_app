@@ -69,6 +69,24 @@ class AlertEvent {
     }
   }
 
+  AlertEvent copyWith({
+    bool? isResolved,
+    String? resolution,
+    DateTime? resolvedAt,
+  }) {
+    return AlertEvent(
+      id: id,
+      timestamp: timestamp,
+      alertType: alertType,
+      severity: severity,
+      patient: patient,
+      message: message,
+      isResolved: isResolved ?? this.isResolved,
+      resolution: resolution ?? this.resolution,
+      resolvedAt: resolvedAt ?? this.resolvedAt,
+    );
+  }
+
   String getAlertTypeLabel() {
     switch (alertType) {
       case 'FALL':

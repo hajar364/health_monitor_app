@@ -1,4 +1,5 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart';
+
 import '../services/wifi_tcp_service.dart';
 import '../models/threshold_settings.dart';
 import '../models/patient_profile.dart';
@@ -9,7 +10,7 @@ import '../models/fall_detection_data.dart';
 // CONNECTIVITY PROVIDER
 // ============================================================
 
-final wifiServiceProvider = Provider<WifiTcpService>((ref) {
+final wifiServiceProvider = Provider<WifiTcpService>(create: (ref) {
   return WifiTcpService();
 });
 

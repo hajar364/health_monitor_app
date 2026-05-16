@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 import '../models/patient_profile.dart';
+import '../widgets/app_logo.dart';
 
 class PatientsManagementScreen extends StatefulWidget {
   const PatientsManagementScreen({Key? key}) : super(key: key);
@@ -124,8 +125,13 @@ class _PatientsManagementScreenState extends State<PatientsManagementScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('👥 Gestion des Patients'),
-        centerTitle: true,
+        leading: const Padding(
+          padding: EdgeInsets.all(8),
+          child: AppLogo(size: 36),
+        ),
+        title: const Text('Gestion des Patients',
+            style: TextStyle(color: Colors.white)),
+        centerTitle: false,
         elevation: 0,
         backgroundColor: Colors.blue.shade700,
       ),

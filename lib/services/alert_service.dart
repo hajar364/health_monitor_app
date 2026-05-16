@@ -1,98 +1,75 @@
+import 'package:flutter/foundation.dart';
 import '../models/alert_event.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:permission_handler/permission_handler.dart';
+import 'package:flutter_phone_direct_caller/flutter_phone_direct_caller.dart';
 
-class AlertService {
+class AlertService extends ChangeNotifier {
   static final AlertService _instance = AlertService._internal();
 
-  List<AlertEvent> _alertHistory = [];
+  final List<AlertEvent> _alertHistory = [];
 
-  factory AlertService() {
-    return _instance;
-  }
+  factory AlertService() => _instance;
 
-  AlertService._internal() {
-    _initNotifications();
-  }
+  AlertService._internal();
 
-  // Initialiser notifications
-  void _initNotifications() {
-    print('✅ AlertService initialisé');
-  }
+  List<AlertEvent> get alertHistory => List.unmodifiable(_alertHistory);
 
-  // Déclencher alerte SOS
-  void triggerSOSAlert(AlertEvent alert) async {
-    print('🚨 SOS ALERT TRIGGERED');
-    print('📢 Type: ${alert.alertType}');
-    print('🔴 Severity: ${alert.severity}');
-    print('💬 Message: ${alert.message}');
+  int get unresolvedCount => _alertHistory.where((a) => !a.isResolved).length;
 
-    // Ajouter à l'historique
+  void triggerSOSAlert(AlertEvent alert) {
     _alertHistory.add(alert);
-    
-    print('✅ Alerte sauvegardée dans l\'historique');
+    notifyListeners();
+    debugPrint('🚨 Alerte SOS: ${alert.alertType} — ${alert.severity}');
   }
 
-  // Appel d'urgence
+  /// Appel direct sans interaction utilisateur (requiert CALL_PHONE)
   Future<bool> emergencyCall(String phoneNumber) async {
-    try {
-      final Uri launchUri = Uri(scheme: 'tel', path: phoneNumber);
-      if (await canLaunchUrl(launchUri)) {
-        await launchUrl(launchUri);
-        print('📞 Appel en cours vers: $phoneNumber');
-        return true;
-      }
-    } catch (e) {
-      print('❌ Erreur appel: $e');
+    if (phoneNumber.isEmpty) return false;
+
+    // Demander la permission si pas encore accordée
+    final status = await Permission.phone.request();
+
+    if (status.isGranted) {
+      // Appel direct — l'app lance l'appel sans que l'utilisateur touche quoi que ce soit
+      final result = await FlutterPhoneDirectCaller.callNumber(phoneNumber);
+      debugPrint('📞 Appel direct vers $phoneNumber: $result');
+      return result ?? false;
+    } else {
+      // Permission refusée → ouvrir le composeur comme fallback
+      debugPrint('⚠️ Permission CALL_PHONE refusée, ouverture composeur');
+      return _openDialer(phoneNumber);
+    }
+  }
+
+  /// Ouvre le composeur (fallback si permission refusée)
+  Future<bool> _openDialer(String phoneNumber) async {
+    final uri = Uri(scheme: 'tel', path: phoneNumber);
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri);
+      return true;
     }
     return false;
   }
 
-  // SMS d'urgence
-  Future<bool> sendEmergencySMS(String phoneNumber, String message) async {
-    try {
-      final Uri smsUri = Uri(scheme: 'sms', path: phoneNumber, queryParameters: {'body': message});
-      if (await canLaunchUrl(smsUri)) {
-        await launchUrl(smsUri);
-        print('💬 SMS envoyé à: $phoneNumber');
-        return true;
-      }
-    } catch (e) {
-      print('❌ Erreur SMS: $e');
-    }
-    return false;
-  }
-
-  // Ajouter alerte base de données
-  Future<void> saveAlertToDatabase(AlertEvent event) async {
-    _alertHistory.add(event);
-    print('💾 Alerte sauvegardée: ${event.id}');
-  }
-
-  // Obtenir historique
-  List<AlertEvent> getAlertHistory() {
-    return _alertHistory;
-  }
-
-  // Résoudre alerte
   void resolveAlert(String alertId, String reason) {
-    try {
-      final index = _alertHistory.indexWhere((a) => a.id == alertId);
-      if (index != -1) {
-        print('✅ Alerte $alertId marquée comme résolue: $reason');
-      }
-    } catch (e) {
-      print('❌ Erreur résolution: $e');
+    final index = _alertHistory.indexWhere((a) => a.id == alertId);
+    if (index != -1) {
+      _alertHistory[index] = _alertHistory[index].copyWith(
+        isResolved: true,
+        resolution: reason,
+        resolvedAt: DateTime.now(),
+      );
+      notifyListeners();
     }
   }
 
-  // Effacer historique
   void clearAllAlerts() {
     _alertHistory.clear();
-    print('🗑️ Historique des alertes effacé');
+    notifyListeners();
   }
 
-  // Nombre d'alertes
-  int getUnresolvedAlertCount() {
-    return _alertHistory.length;
-  }
+  // Compatibilité avec l'ancien code
+  List<AlertEvent> getAlertHistory() => _alertHistory;
+  int getUnresolvedAlertCount() => unresolvedCount;
 }

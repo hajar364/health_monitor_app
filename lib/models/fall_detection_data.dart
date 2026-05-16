@@ -1,14 +1,15 @@
 // Données IMU du capteur MPU6050
 class IMUSensorData {
   final DateTime timestamp;
-  final double accelX;      // m/s² ou g
+  final double accelX;        // G
   final double accelY;
   final double accelZ;
-  final double gyroX;       // °/s
+  final double gyroX;         // °/s
   final double gyroY;
   final double gyroZ;
-  final double magnitude;   // Magnitude totale accélération
-  final double temperature; // °C
+  final double magnitude;     // Magnitude totale en G
+  final double temperature;   // °C
+  final bool fallDetected;    // Chute confirmée côté ESP32
 
   IMUSensorData({
     required this.timestamp,
@@ -20,15 +21,15 @@ class IMUSensorData {
     required this.gyroZ,
     required this.magnitude,
     required this.temperature,
+    this.fallDetected = false,
   });
 
   factory IMUSensorData.fromJson(Map<String, dynamic> json) {
     final List<double> accel = List<double>.from(json['accel'] ?? [0, 0, -9.8]);
     final List<double> gyro = List<double>.from(json['gyro'] ?? [0, 0, 0]);
     final temp = (json['temperature'] ?? 36.5).toDouble();
-    
-    final mag = (accel[0] * accel[0] + 
-                 accel[1] * accel[1] + 
+    final mag = (accel[0] * accel[0] +
+                 accel[1] * accel[1] +
                  accel[2] * accel[2]).toDouble();
 
     return IMUSensorData(
@@ -41,6 +42,7 @@ class IMUSensorData {
       gyroZ: gyro[2],
       magnitude: mag,
       temperature: temp,
+      fallDetected: json['fallDetected'] as bool? ?? false,
     );
   }
 
@@ -54,6 +56,7 @@ class IMUSensorData {
     'gyroZ': gyroZ,
     'magnitude': magnitude,
     'temperature': temperature,
+    'fallDetected': fallDetected,
   };
 }
 

@@ -11,7 +11,7 @@ class ThresholdSettings {
 
   ThresholdSettings({
     this.fallDetectionSensitivity = 1.0,
-    this.accelerationThreshold = 1.5,
+    this.accelerationThreshold = 2.5,
     this.temperatureHighAlert = 39.0,
     this.temperatureLowAlert = 35.0,
     this.fallConfirmationDelay = 300,

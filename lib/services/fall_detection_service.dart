@@ -23,7 +23,7 @@ class FallDetectionService {
     
     // 1. Détection pic d'accélération (chute)
     final peakAccel = _detectAccelerationPeak();
-    if (peakAccel == null) return null;
+    if (!peakAccel) return null;
 
     // 2. Détection changement rapide d'orientation (gyroscope)
     final rapidRotation = _detectRapidRotation();
@@ -59,32 +59,28 @@ class FallDetectionService {
     );
   }
 
-  // Détection 1: Pic d'accélération
+  // Détection 1: Pic d'accélération (valeurs en G)
   bool _detectAccelerationPeak() {
     if (_sensorBuffer.length < 5) return false;
 
-    final threshold = 9.8 * thresholds.accelerationThreshold;
-    
-    // Cherche un point où magnitude > seuil
+    // accelerationThreshold est en G (ex : 2.5 G pour une chute)
+    final threshold = thresholds.accelerationThreshold;
+
     for (int i = 0; i < _sensorBuffer.length - 1; i++) {
       final mag = sqrt(
         _sensorBuffer[i].accelX * _sensorBuffer[i].accelX +
         _sensorBuffer[i].accelY * _sensorBuffer[i].accelY +
-        _sensorBuffer[i].accelZ * _sensorBuffer[i].accelZ
+        _sensorBuffer[i].accelZ * _sensorBuffer[i].accelZ,
       );
 
       if (mag > threshold) {
-        // Vérifie qu'il y a baisse après (phase 2 = libre chute)
-        if (i + 1 < _sensorBuffer.length) {
-          final magNext = sqrt(
-            _sensorBuffer[i + 1].accelX * _sensorBuffer[i + 1].accelX +
-            _sensorBuffer[i + 1].accelY * _sensorBuffer[i + 1].accelY +
-            _sensorBuffer[i + 1].accelZ * _sensorBuffer[i + 1].accelZ
-          );
-          if (magNext < threshold * 0.8) {
-            return true;
-          }
-        }
+        // Vérifie baisse après le pic (rebond / chute libre)
+        final magNext = sqrt(
+          _sensorBuffer[i + 1].accelX * _sensorBuffer[i + 1].accelX +
+          _sensorBuffer[i + 1].accelY * _sensorBuffer[i + 1].accelY +
+          _sensorBuffer[i + 1].accelZ * _sensorBuffer[i + 1].accelZ,
+        );
+        if (magNext < threshold * 0.7) return true;
       }
     }
     return false;
@@ -108,21 +104,19 @@ class FallDetectionService {
     return false;
   }
 
-  // Détection 3: Confirmation au sol
+  // Détection 3: Confirmation au sol (valeurs en G)
   bool _confirmGroundPosition() {
-    if (_sensorBuffer.isEmpty) return false;
+    if (_sensorBuffer.length < 3) return false;
 
-    // Après chute, accélération devrait être ~9.8 (repos au sol)
-    // avec le Z négatif (gravité vers bas)
-    final lastData = _sensorBuffer.last;
-    final mag = sqrt(
-      lastData.accelX * lastData.accelX +
-      lastData.accelY * lastData.accelY +
-      lastData.accelZ * lastData.accelZ
-    );
-
-    // Si magnitude est proche de 9.8 ± 1, c'est au repos
-    return (mag > 8.5 && mag < 10.8);
+    // Au repos, la magnitude vaut ~1 G (gravité seule)
+    // On vérifie les 3 dernières mesures pour confirmer l'immobilité
+    int stillCount = 0;
+    for (int i = _sensorBuffer.length - 3; i < _sensorBuffer.length; i++) {
+      final d = _sensorBuffer[i];
+      final mag = sqrt(d.accelX * d.accelX + d.accelY * d.accelY + d.accelZ * d.accelZ);
+      if (mag > 0.75 && mag < 1.25) stillCount++;
+    }
+    return stillCount >= 2;
   }
 
   String _getDetectionReason(

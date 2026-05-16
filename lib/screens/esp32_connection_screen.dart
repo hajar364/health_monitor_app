@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/esp32_ip_provider.dart';
 
 class ESP32ConnectionScreen extends ConsumerStatefulWidget {

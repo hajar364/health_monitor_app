@@ -1,15 +1,15 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:provider/provider.dart';
 import '../providers/esp32_ip_provider.dart';
 
-class ESP32SetupScreen extends ConsumerStatefulWidget {
-  const ESP32SetupScreen({Key? key}) : super(key: key);
+class ESP32SetupScreen extends StatefulWidget {
+  const ESP32SetupScreen({super.key});
 
   @override
-  ConsumerState<ESP32SetupScreen> createState() => _ESP32SetupScreenState();
+  State<ESP32SetupScreen> createState() => _ESP32SetupScreenState();
 }
 
-class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
+class _ESP32SetupScreenState extends State<ESP32SetupScreen> {
   late TextEditingController _ipController;
   late TextEditingController _portController;
   late TextEditingController _deviceNameController;
@@ -23,17 +23,16 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
     _ipController = TextEditingController();
     _portController = TextEditingController();
     _deviceNameController = TextEditingController();
-    _loadCurrentSettings();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _loadCurrentSettings());
   }
 
-  Future<void> _loadCurrentSettings() async {
-    final settingsAsync = ref.read(esp32SettingsProvider);
-    settingsAsync.whenData((settings) {
-      setState(() {
-        _ipController.text = settings.ipAddress;
-        _portController.text = settings.port.toString();
-        _deviceNameController.text = settings.deviceName;
-      });
+  void _loadCurrentSettings() {
+    if (!mounted) return;
+    final settings = context.read<ESP32SettingsNotifier>().settings;
+    setState(() {
+      _ipController.text = settings.ipAddress;
+      _portController.text = settings.port.toString();
+      _deviceNameController.text = settings.deviceName;
     });
   }
 
@@ -59,32 +58,32 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
         rememberDevice: true,
       );
 
-      // Sauvegarder les paramètres
-      await ref
-          .read(esp32SettingsProvider.notifier)
-          .saveSettings(settings);
+      final settingsNotifier = context.read<ESP32SettingsNotifier>();
+      final wifiNotifier = context.read<WifiServiceNotifier>();
 
-      // Tester la connexion
-      final wifiService = ref.read(wifiServiceProvider);
-      final connected = await wifiService.connectToESP32(
+      await settingsNotifier.saveSettings(settings);
+
+      final connected = await wifiNotifier.connectToESP32(
         settings.ipAddress,
         port: settings.port,
       );
 
-      setState(() {
-        _isConnected = connected;
-        if (connected) {
-          _statusMessage = '✅ ESP32 connecté avec succès!';
-        } else {
-          _statusMessage = '❌ Impossible de se connecter à l\'ESP32';
-        }
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _isConnected = connected;
+          _statusMessage = connected
+              ? '✅ ESP32 connecté avec succès!'
+              : '❌ Impossible de se connecter à l\'ESP32';
+          _isLoading = false;
+        });
+      }
     } catch (e) {
-      setState(() {
-        _statusMessage = '❌ Erreur: $e';
-        _isLoading = false;
-      });
+      if (mounted) {
+        setState(() {
+          _statusMessage = '❌ Erreur: $e';
+          _isLoading = false;
+        });
+      }
     }
   }
 
@@ -110,7 +109,6 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // === Titre ===
             Text(
               '📡 Paramètres de connexion',
               style: Theme.of(context).textTheme.headlineSmall,
@@ -124,11 +122,10 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
             ),
             const SizedBox(height: 24),
 
-            // === Champ IP ===
             TextField(
               controller: _ipController,
               enabled: !_isLoading,
-              keyboardType: TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
               decoration: InputDecoration(
                 labelText: 'Adresse IP de l\'ESP32',
                 hintText: '192.168.1.100',
@@ -147,7 +144,6 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
             ),
             const SizedBox(height: 16),
 
-            // === Champ Port ===
             TextField(
               controller: _portController,
               enabled: !_isLoading,
@@ -163,7 +159,6 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
             ),
             const SizedBox(height: 16),
 
-            // === Champ Nom du device ===
             TextField(
               controller: _deviceNameController,
               enabled: !_isLoading,
@@ -178,7 +173,6 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
             ),
             const SizedBox(height: 24),
 
-            // === Bouton de connexion ===
             SizedBox(
               width: double.infinity,
               height: 50,
@@ -210,7 +204,6 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
             ),
             const SizedBox(height: 16),
 
-            // === Message de statut ===
             if (_statusMessage.isNotEmpty)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -229,8 +222,9 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
                   children: [
                     Icon(
                       _isConnected ? Icons.check_circle : Icons.warning,
-                      color:
-                          _isConnected ? Colors.green.shade600 : Colors.red.shade600,
+                      color: _isConnected
+                          ? Colors.green.shade600
+                          : Colors.red.shade600,
                     ),
                     const SizedBox(width: 12),
                     Expanded(
@@ -249,7 +243,6 @@ class _ESP32SetupScreenState extends ConsumerState<ESP32SetupScreen> {
               ),
             const SizedBox(height: 24),
 
-            // === Section d'aide ===
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(

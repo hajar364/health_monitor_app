@@ -60,10 +60,10 @@ class WifiTcpService {
         final json = jsonDecode(response.body);
         return IMUSensorData(
           timestamp: DateTime.now(),
-          accelX: (json['accelX'] as num).toDouble() / 16384.0, // Convertir en G
-          accelY: (json['accelY'] as num).toDouble() / 16384.0,
-          accelZ: (json['accelZ'] as num).toDouble() / 16384.0,
-          gyroX: (json['gyroX'] as num).toDouble() / 131.0, // Convertir en °/s
+          accelX: (json['accelX'] as num).toDouble() / 4096.0, // ±8G → 4096 LSB/g
+          accelY: (json['accelY'] as num).toDouble() / 4096.0,
+          accelZ: (json['accelZ'] as num).toDouble() / 4096.0,
+          gyroX: (json['gyroX'] as num).toDouble() / 131.0, // ±2000°/s → 131 LSB/°/s
           gyroY: (json['gyroY'] as num).toDouble() / 131.0,
           gyroZ: (json['gyroZ'] as num).toDouble() / 131.0,
           magnitude: _calculateMagnitude(
@@ -72,6 +72,7 @@ class WifiTcpService {
             (json['accelZ'] as num).toDouble(),
           ),
           temperature: (json['tempObj'] as num).toDouble(),
+          fallDetected: json['fallDetected'] as bool? ?? false,
         );
       }
     } catch (e) {
@@ -81,9 +82,9 @@ class WifiTcpService {
     return _generateTestSensorData();
   }
 
-  /// Stream de données des capteurs (polling toutes les 100ms)
+  /// Stream de données des capteurs (polling toutes les 50ms)
   Stream<IMUSensorData> getSensorDataStream(
-      {Duration interval = const Duration(milliseconds: 100)}) {
+      {Duration interval = const Duration(milliseconds: 50)}) {
     return Stream.periodic(interval, (_) => getSensorData())
         .asyncExpand((future) => Stream.fromFuture(future));
   }
@@ -153,11 +154,11 @@ class WifiTcpService {
     return _generateTestSensorData();
   }
 
-  /// Calculer la magnitude de l'accélération
+  /// Calculer la magnitude en G (±8G → 4096 LSB/g)
   double _calculateMagnitude(double ax, double ay, double az) {
-    final gx = ax / 16384.0;
-    final gy = ay / 16384.0;
-    final gz = az / 16384.0;
+    final gx = ax / 4096.0;
+    final gy = ay / 4096.0;
+    final gz = az / 4096.0;
     return sqrt(gx * gx + gy * gy + gz * gz);
   }
 }

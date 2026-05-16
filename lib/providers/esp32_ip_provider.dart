@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/fall_detection_data.dart';
+import '../models/threshold_settings.dart';
 import '../services/wifi_tcp_service.dart';
 
 // ============================================================
@@ -189,14 +189,42 @@ class WifiServiceNotifier extends ChangeNotifier {
 
 
 // ============================================================
-// PROVIDER INSTANCES - À utiliser dans les widgets avec Provider
+// THRESHOLD SETTINGS NOTIFIER - Persistance des seuils de détection
 // ============================================================
 
-// Import this in your main.dart:
-// final esp32SettingsProvider = ChangeNotifierProvider<ESP32SettingsNotifier>((ref) {
-//   return ESP32SettingsNotifier();
-// });
-//
-// final wifiServiceProvider = ChangeNotifierProvider<WifiServiceNotifier>((ref) {
-//   return WifiServiceNotifier();
-// });
+class ThresholdSettingsNotifier extends ChangeNotifier {
+  ThresholdSettings _settings = ThresholdSettings();
+  bool _isLoaded = false;
+
+  ThresholdSettings get settings => _settings;
+  bool get isLoaded => _isLoaded;
+
+  ThresholdSettingsNotifier() {
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final raw = prefs.getString('threshold_settings');
+      if (raw != null && raw.isNotEmpty) {
+        _settings = ThresholdSettings.fromJson(
+          jsonDecode(raw) as Map<String, dynamic>,
+        );
+      }
+    } catch (_) {}
+    _isLoaded = true;
+    notifyListeners();
+  }
+
+  Future<void> save(ThresholdSettings s) async {
+    _settings = s;
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('threshold_settings', jsonEncode(s.toJson()));
+  }
+
+  Future<void> reset() async {
+    await save(ThresholdSettings());
+  }
+}
