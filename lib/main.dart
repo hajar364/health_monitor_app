@@ -24,7 +24,7 @@ class FallDetectionApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AlertService()),
       ],
       child: MaterialApp(
-        title: 'VeilGuard',
+        title: 'HealthGuard',
         debugShowCheckedModeBanner: false,
         theme: ThemeData(
           primarySwatch: Colors.blue,

@@ -1,5 +1,5 @@
 name: health_monitor_app
-description: VeilGuard — Détection de chute et appel SOS IoT
+description: HealthGuard — Détection de chute et appel SOS IoT
 
 publish_to: 'none'
 

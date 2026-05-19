@@ -24,7 +24,7 @@ class AppLogo extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'VeilGuard',
+          'HealthGuard',
           style: TextStyle(
             fontSize: size * 0.22,
             fontWeight: FontWeight.bold,

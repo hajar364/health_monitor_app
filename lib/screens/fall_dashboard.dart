@@ -362,7 +362,7 @@ class _FallDetectionDashboardState extends State<FallDetectionDashboard> {
           child: AppLogo(size: 36),
         ),
         title: const Text(
-          'VeilGuard',
+          'HealthGuard',
           style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white),
         ),
         centerTitle: false,
